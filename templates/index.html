@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Harsha's Career Compass</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .form-input:focus {
+            border-color: #f59e0b; /* amber-500 */
+            box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.4);
+        }
+        .loader {
+            border: 4px solid #4b5563; /* gray-600 */
+            border-top: 4px solid #f59e0b; /* amber-500 */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-300">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+        
+        <!-- Header -->
+        <header class="text-center mb-10">
+            <h1 class="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 via-amber-500 to-amber-600">
+                🧭 Harsha's Career Compass
+            </h1>
+            <p class="mt-3 text-lg text-gray-400">Your Personal AI-Powered Learning Plan Generator</p>
+        </header>
+
+        <!-- Main Form -->
+        <main class="bg-gray-800/50 backdrop-blur-sm p-8 rounded-2xl shadow-lg border border-gray-700">
+            <form id="plan-form">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Column 1 -->
+                    <div class="space-y-6">
+                        <div>
+                            <label for="goal" class="block text-sm font-medium text-gray-300 mb-1">What is your Career Goal?</label>
+                            <input type="text" id="goal" name="goal" class="form-input w-full p-3 bg-gray-900 border border-gray-600 rounded-lg text-white" placeholder="e.g., AI/ML Engineer" required>
+                        </div>
+                        <div>
+                            <label for="skillLevel" class="block text-sm font-medium text-gray-300 mb-1">Your Current Skill Level</label>
+                            <select id="skillLevel" name="skillLevel" class="form-input w-full p-3 bg-gray-900 border border-gray-600 rounded-lg text-white" required>
+                                <option value="Beginner">Beginner (Just starting out)</option>
+                                <option value="Intermediate">Intermediate (Have some experience)</option>
+                                <option value="Advanced">Advanced (Ready for complex topics)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <!-- Column 2 -->
+                    <div class="space-y-6">
+                        <div>
+                            <label for="skills" class="block text-sm font-medium text-gray-300 mb-1">Specific Skills to Learn</label>
+                            <textarea id="skills" name="skills" rows="3" class="form-input w-full p-3 bg-gray-900 border border-gray-600 rounded-lg text-white" placeholder="e.g., TensorFlow, PyTorch, Scikit-learn" required></textarea>
+                        </div>
+                         <div>
+                            <label for="hours" class="block text-sm font-medium text-gray-300 mb-1">Hours Per Week You Can Commit</label>
+                            <input type="number" id="hours" name="hours" class="form-input w-full p-3 bg-gray-900 border border-gray-600 rounded-lg text-white" placeholder="e.g., 10" min="1" required>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-8 text-center">
+                    <button type="submit" id="generate-btn" class="w-full md:w-auto bg-amber-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-amber-700 transition-colors duration-300 shadow-lg shadow-amber-900/20">
+                        Generate My Plan
+                    </button>
+                </div>
+            </form>
+        </main>
+
+        <!-- Loading, Error, and Results Section -->
+        <section id="output-section" class="mt-10">
+            <!-- Loading Spinner -->
+            <div id="loading" class="hidden flex-col items-center text-center">
+                <div class="loader"></div>
+                <p class="mt-4 text-gray-400 font-medium">Your AI co-pilot is building your plan... Please wait.</p>
+            </div>
+
+            <!-- Error Message -->
+            <div id="error" class="hidden bg-red-900/50 border border-red-500 text-red-300 px-4 py-3 rounded-lg text-center">
+                <strong class="font-bold">Oops!</strong>
+                <span class="block sm:inline" id="error-message">Something went wrong.</span>
+            </div>
+
+            <!-- Results Display -->
+            <div id="results" class="hidden">
+                <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                    <h2 class="text-3xl font-bold text-gray-100">Your 8-Week Learning Plan</h2>
+                    <button id="download-btn" class="w-full md:w-auto bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 transition-colors duration-300 shadow-lg shadow-green-900/20">
+                        Download PDF
+                    </button>
+                </div>
+                <div id="plan-container" class="space-y-6">
+                    <!-- Plan will be dynamically inserted here -->
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.getElementById('plan-form');
+            const generateBtn = document.getElementById('generate-btn');
+            const loadingDiv = document.getElementById('loading');
+            const errorDiv = document.getElementById('error');
+            const errorMessage = document.getElementById('error-message');
+            const resultsDiv = document.getElementById('results');
+            const planContainer = document.getElementById('plan-container');
+            const downloadBtn = document.getElementById('download-btn');
+
+            let generatedPlanData = null;
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                // Reset UI
+                resultsDiv.classList.add('hidden');
+                errorDiv.classList.add('hidden');
+                loadingDiv.classList.remove('hidden');
+                generateBtn.disabled = true;
+                generateBtn.textContent = 'Generating...';
+
+                const formData = new FormData(form);
+                const data = {
+                    goal: formData.get('goal'),
+                    skillLevel: formData.get('skillLevel'),
+                    skills: formData.get('skills'),
+                    hours: formData.get('hours'),
+                };
+
+                try {
+                    const response = await fetch('/generate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(data),
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                    }
+
+                    const planData = await response.json();
+                    generatedPlanData = planData; // Store for PDF download
+                    displayPlan(planData);
+                    resultsDiv.classList.remove('hidden');
+
+                } catch (err) {
+                    errorMessage.textContent = err.message;
+                    errorDiv.classList.remove('hidden');
+                } finally {
+                    loadingDiv.classList.add('hidden');
+                    generateBtn.disabled = false;
+                    generateBtn.textContent = 'Generate My Plan';
+                }
+            });
+
+            function displayPlan(planData) {
+                planContainer.innerHTML = ''; // Clear previous results
+                if (!planData.weekly_plan || planData.weekly_plan.length === 0) {
+                     errorMessage.textContent = 'The AI returned an empty or invalid plan. Please try again.';
+                     errorDiv.classList.remove('hidden');
+                     return;
+                }
+                
+                planData.weekly_plan.forEach(week => {
+                    const weekElement = document.createElement('div');
+                    weekElement.className = 'bg-gray-800/70 p-6 rounded-lg shadow-md border-l-4 border-amber-500';
+                    weekElement.innerHTML = `
+                        <h3 class="text-xl font-bold text-amber-400">${week.week}: ${week.topic}</h3>
+                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <h4 class="font-semibold text-gray-200 mb-2">Key Details & Tasks</h4>
+                                <ul class="list-disc list-inside space-y-1 text-gray-400">
+                                    ${week.details.map(item => `<li>${item}</li>`).join('')}
+                                </ul>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-gray-200 mb-2">Suggested Resources</h4>
+                                <ul class="list-disc list-inside space-y-1 text-gray-400">
+                                    ${week.resources.map(item => `<li>${item}</li>`).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    `;
+                    planContainer.appendChild(weekElement);
+                });
+            }
+            
+            downloadBtn.addEventListener('click', async () => {
+                if (!generatedPlanData) {
+                    alert('Please generate a plan first.');
+                    return;
+                }
+                
+                try {
+                    const response = await fetch('/download_pdf', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(generatedPlanData)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('PDF generation failed.');
+                    }
+                    
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = 'Career_Compass_Plan.pdf';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                } catch (err) {
+                    alert(err.message);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
