@@ -1,9 +1,10 @@
-# Harsha's Career Compass - Backend Server (Perplexity API Version)
+# Harsha's Career Compass - Backend Server (Google Gemini API Version)
 # File: app.py
 
 import os
 import json
 import requests
+import google.generativeai as genai
 from flask import Flask, request, jsonify, render_template, Response
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -15,70 +16,71 @@ from io import BytesIO
 app = Flask(__name__, template_folder='templates')
 
 # --- Configuration ---
-PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions"
 # The API key will be read from an environment variable for security
-API_KEY = os.environ.get("PERPLEXITY_API_KEY")
+# Make sure to set GEMINI_API_KEY in your environment
+try:
+    API_KEY = os.environ.get("GEMINI_API_KEY")
+    if not API_KEY:
+        raise ValueError("GEMINI_API_KEY not found in environment variables.")
+    genai.configure(api_key=API_KEY)
+except ValueError as e:
+    print(e)
+    API_KEY = None # Ensure API_KEY is None if not set
 
 # --- Helper Functions ---
 
 def generate_ai_plan(goal, skill_level, skills_to_learn, hours_per_week):
     """
-    Constructs a prompt and sends it to the Perplexity API to get a learning plan.
+    Constructs a prompt and sends it to the Gemini API to get a learning plan.
     """
     if not API_KEY:
-        print("Error: PERPLEXITY_API_KEY environment variable not set.")
+        print("Error: Gemini API key is not configured.")
         return None
 
     # A detailed prompt for the AI to generate a structured plan
-    system_prompt = """
-    You are an expert career development coach. You always generate a response in a structured JSON format. The JSON object must have a single key "weekly_plan". The "weekly_plan" value should be an array of 8 objects, where each object represents a week. Each weekly object must have the following keys: "week", "topic", "details" (as a list of strings), and "resources" (as a list of strings). Do not include any introductory text or explanations outside of the JSON object itself.
+    prompt = f"""
+    You are an expert career development coach. Your task is to generate a response containing ONLY a valid JSON object. Do not include markdown formatting like ```json or any text before or after the JSON object.
+
+    The JSON object must have a single root key "weekly_plan". This key must contain an array of 8 objects, where each object represents a week.
+    Each weekly object must have the following keys: "week", "topic", "details" (as a list of strings), and "resources" (as a list of strings).
+
+    Create this JSON for a user with the following details:
+    - Goal: "{goal}"
+    - Skill Level: {skill_level}
+    - Skills to Learn: {skills_to_learn}
+    - Weekly Time: {hours_per_week} hours
     """
     
-    user_prompt = f"""
-    Create a detailed, structured, 8-week learning plan for a user with the following details:
-    - User's Goal: Become a "{goal}"
-    - Current Skill Level: {skill_level}
-    - Specific Skills to Learn: {skills_to_learn}
-    - Available Study Time: {hours_per_week} hours per week
-    """
-
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "model": "llama-3-sonar-large-32k-online", # A powerful model from Perplexity
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
-    }
-
     try:
-        response = requests.post(PERPLEXITY_API_URL, headers=headers, json=payload, timeout=60) # 60-second timeout
-        response.raise_for_status() # Raise an exception for bad status codes (4xx or 5xx)
+        # Using a reliable and fast model from Gemini
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
-        response_data = response.json()
-        # The AI's response is a JSON string inside the content field
-        content_string = response_data['choices'][0]['message']['content']
-        plan_data = json.loads(content_string)
+        # We configure the model to output JSON directly
+        generation_config = genai.types.GenerationConfig(
+            response_mime_type="application/json"
+        )
+        
+        print("--- Sending Prompt to Gemini ---")
+        response = model.generate_content(prompt, generation_config=generation_config)
+        print("--- Received Response from Gemini ---")
+
+        # The response text should be a clean JSON string
+        plan_data = json.loads(response.text)
         
         return plan_data
 
-    except requests.exceptions.RequestException as e:
-        print(f"Error connecting to Perplexity API: {e}")
-        return None
-    except (json.JSONDecodeError, KeyError) as e:
-        print(f"Error processing response from Perplexity: {e}")
-        print(f"Received data: {response.text}")
+    except Exception as e:
+        print(f"An error occurred while calling the Gemini API: {e}")
+        # This will print more detailed errors if the API call fails
+        if 'response' in locals():
+            print(f"Gemini API response details: {response.prompt_feedback}")
         return None
 
 
 def create_pdf(plan_data):
     """
     Generates a PDF document from the learning plan data using ReportLab.
-    (This function remains the same as before)
+    (This function remains the same)
     """
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
@@ -128,7 +130,7 @@ def index():
 def generate():
     """API endpoint to generate the learning plan."""
     if not API_KEY:
-        return jsonify({"error": "API key is not configured on the server."}), 500
+        return jsonify({"error": "Gemini API key is not configured on the server. Please set the GEMINI_API_KEY environment variable."}), 500
         
     data = request.get_json()
     if not data:
@@ -147,7 +149,7 @@ def generate():
     if plan and 'weekly_plan' in plan:
         return jsonify(plan)
     else:
-        return jsonify({"error": "Failed to generate plan from AI. The API may be down or the response was invalid."}), 500
+        return jsonify({"error": "Failed to generate plan from AI. Check the server logs for the specific error from the API."}), 500
 
 @app.route('/download_pdf', methods=['POST'])
 def download_pdf():
@@ -165,5 +167,5 @@ def download_pdf():
 # This block is for local development only and will be ignored by Vercel/Netlify
 if __name__ == '__main__':
     print("Starting Harsha's Career Compass server for local development...")
-    print("Access at http://127.0.0.1:5000")
+    print("Access at [http://127.0.0.1:5000](http://127.0.0.1:5000)")
     app.run(debug=True, port=5000)
