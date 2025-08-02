@@ -1,1 +1,4 @@
-Flaskrequestsreportlab
+Flask
+requests
+reportlab
+google-generativeai
