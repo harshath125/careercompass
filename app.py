@@ -15,26 +15,20 @@ from io import BytesIO
 # Initialize the Flask application
 app = Flask(__name__, template_folder='templates')
 
-# --- Configuration ---
-# The API key will be read from an environment variable for security
-# Make sure to set GEMINI_API_KEY in your environment
-try:
-    API_KEY = os.environ.get("GEMINI_API_KEY")
-    if not API_KEY:
-        raise ValueError("GEMINI_API_KEY not found in environment variables.")
-    genai.configure(api_key=API_KEY)
-except ValueError as e:
-    print(e)
-    API_KEY = None # Ensure API_KEY is None if not set
-
 # --- Helper Functions ---
 
 def generate_ai_plan(goal, skill_level, skills_to_learn, hours_per_week):
     """
     Constructs a prompt and sends it to the Gemini API to get a learning plan.
     """
-    if not API_KEY:
-        print("Error: Gemini API key is not configured.")
+    # --- FIX for Vercel: Configure the API key right when it's needed ---
+    try:
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY environment variable not found or is empty.")
+        genai.configure(api_key=api_key)
+    except Exception as e:
+        print(f"Error configuring Gemini API key: {e}")
         return None
 
     # A detailed prompt for the AI to generate a structured plan
@@ -72,7 +66,7 @@ def generate_ai_plan(goal, skill_level, skills_to_learn, hours_per_week):
     except Exception as e:
         print(f"An error occurred while calling the Gemini API: {e}")
         # This will print more detailed errors if the API call fails
-        if 'response' in locals():
+        if 'response' in locals() and hasattr(response, 'prompt_feedback'):
             print(f"Gemini API response details: {response.prompt_feedback}")
         return None
 
@@ -105,7 +99,7 @@ def create_pdf(plan_data):
         table = Table(table_data, colWidths=[250, 250])
         table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesoke),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
@@ -129,9 +123,6 @@ def index():
 @app.route('/generate', methods=['POST'])
 def generate():
     """API endpoint to generate the learning plan."""
-    if not API_KEY:
-        return jsonify({"error": "Gemini API key is not configured on the server. Please set the GEMINI_API_KEY environment variable."}), 500
-        
     data = request.get_json()
     if not data:
         return jsonify({"error": "Invalid input"}), 400
@@ -149,6 +140,7 @@ def generate():
     if plan and 'weekly_plan' in plan:
         return jsonify(plan)
     else:
+        # This error message is shown if the plan generation fails for any reason.
         return jsonify({"error": "Failed to generate plan from AI. Check the server logs for the specific error from the API."}), 500
 
 @app.route('/download_pdf', methods=['POST'])
@@ -169,3 +161,4 @@ if __name__ == '__main__':
     print("Starting Harsha's Career Compass server for local development...")
     print("Access at [http://127.0.0.1:5000](http://127.0.0.1:5000)")
     app.run(debug=True, port=5000)
+
