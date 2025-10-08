@@ -2,3 +2,4 @@ Flask
 requests
 reportlab
 google-generativeai
+gunicorn
